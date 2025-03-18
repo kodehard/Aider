@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>SmartSolve Screenshot Tool</h1>
+    <p>Processing screenshot...</p>
+    <img id="screenshotImage" src="" alt="Screenshot">
+    <div id="ocrText"></div>
+  </div>
+  <script>
+    document.addEventListener('DOMContentLoaded', async function() {
+      const screenshotImage = document.getElementById('screenshotImage');
+      const ocrTextDiv = document.getElementById('ocrText');
+
+      chrome.storage.local.get(['screenshot'], async function(result) {
+        if (result.screenshot) {
+          screenshotImage.src = result.screenshot;
+
+          try {
+            const { data: { text } } = await Tesseract.recognize(
+              result.screenshot,
+              'eng',
+              { logger: m => console.log(m) }
+            );
+            ocrTextDiv.textContent = text;
+            console.log('OCR Result:', text);
+          } catch (error) {
+            console.error('OCR Error:', error);
+            ocrTextDiv.textContent = 'Error processing OCR.';
+          }
+        } else {
+          ocrTextDiv.textContent = 'No screenshot found.';
+        }
+      });
+    });
+  </script>
+</body>
+</html>

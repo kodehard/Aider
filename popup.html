@@ -1,0 +1,39 @@
+
+<html>
+<head>
+  <title>SmartSolve AI</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="icons/icon48.png" alt="SmartSolve AI Logo" class="logo">
+      <h1>SmartSolve AI</h1>
+    </div>
+    
+    <div class="description">
+      <p>Type your question or use the screenshot tool to analyze problems.</p>
+    </div>
+    
+    <div class="input-container">
+      <textarea id="questionInput" placeholder="Type or paste your question here..."></textarea>
+      <button id="solveButton">Solve</button>
+    </div>
+    
+    <div class="answer-container" id="answerContainer">
+      <h2>Answer</h2>
+      <div id="loadingIndicator" class="loading hidden">
+        <div class="spinner"></div>
+        <p>Solving your question...</p>
+      </div>
+      <div id="answerContent"></div>
+    </div>
+
+    <div class="footer">
+      <button id="screenshotButton">Take Screenshot</button>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

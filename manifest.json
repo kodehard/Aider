@@ -1,0 +1,52 @@
+{
+    "name": "Aider AI",
+    "description": "AI-powered homework and study assistant with drag-select screenshot and AI integration.",
+    "version": "1.0",
+    "manifest_version": 3,
+    "permissions": [
+        "activeTab",
+        "contextMenus",
+        "storage",
+        "scripting",
+        "tabs",
+        "nativeMessaging",
+        "screenshot"
+    ],
+    "host_permissions": [
+        "<all_urls>"
+    ],
+    "action": {
+        "default_popup": "popup.html",
+        "default_icon": {
+            "16": "icons/icon16.png",
+            "48": "icons/icon48.png",
+            "128": "icons/icon128.png"
+        }
+    },
+    "icons": {
+        "16": "icons/icon16.png",
+        "48": "icons/icon48.png",
+        "128": "icons/icon128.png"
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "js": ["config.js", "tesseract.min.js", "content.js", "screenshot.js"],
+            "run_at": "document_start"
+        }
+    ],
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "tesseract-core/worker.min.js",
+                "tesseract-core/tesseract-core.wasm.js",
+                "tesseract-core/*",
+                "config.js"
+            ],
+            "matches": ["<all_urls>"]
+        }
+    ]
+}

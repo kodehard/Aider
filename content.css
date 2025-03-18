@@ -1,0 +1,7 @@
+#selectionDiv {
+    position: absolute;
+    background-color: rgba(100, 149, 237, 0.3);
+    border: 2px dashed dodgerblue;
+    z-index: 10000;
+    display: none;
+}
