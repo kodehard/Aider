@@ -1,31 +1,347 @@
 body {
-    font-family: Arial, sans-serif;
-    margin: 0;
-    padding: 0;
+  font-family: 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f9f9f9;
+  color: #333;
+}
+
+.container {
+  width: 350px;
+  padding: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  background-color: #fff;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eaeaea;
+}
+
+.logo {
+  width: 36px;
+  height: 36px;
+  margin-right: 12px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+  font-size: 22px;
+  font-weight: 600;
+  color: #1a73e8;
+  margin: 0;
+}
+
+.description {
+  margin-bottom: 16px;
+}
+
+.description p {
+  font-size: 14px;
+  line-height: 1.4;
+  color: #5f6368;
+}
+
+.input-container {
+  margin-bottom: 16px;
+}
+
+textarea {
+  width: calc(100% - 24px);
+  min-height: 80px;
+  padding: 12px;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: #1a73e8;
+  box-shadow: 0 1px 3px rgba(26, 115, 232, 0.2);
+}
+
+button {
+  background-color: #1a73e8;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button:hover {
+  background-color: #1765cc;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+
+button:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.button-icon {
+  margin-right: 8px;
+  font-size: 16px;
+}
+
+#solveButton {
+  margin-top: 12px;
+  width: 100%;
+  background-color: #1a73e8;
+  background-image: linear-gradient(to bottom, #1a73e8, #1765cc);
+}
+
+.answer-container {
+  margin-top: 20px;
+  border-top: 1px solid #eaeaea;
+  padding-top: 16px;
+}
+
+h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: #1a73e8;
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 0;
+}
+
+.loading p {
+  margin-top: 12px;
+  color: #5f6368;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(26, 115, 232, 0.2);
+  border-top-color: #1a73e8;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
-  
-  .container {
-    padding: 16px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+#answerContent {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #202124;
+  white-space: pre-wrap;
+  background-color: #f8f9fa;
+  padding: 12px;
+  border-radius: 6px;
+  border-left: 3px solid #1a73e8;
+}
+
+.footer {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+#screenshotButton {
+  background-color: #34a853;
+  background-image: linear-gradient(to bottom, #34a853, #2d9249);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+#screenshotButton:hover {
+  background-color: #2d9249;
+  background-image: linear-gradient(to bottom, #2d9249, #267c3d);
+}
+
+/* Add image preview styles */
+.image-preview {
+  margin-top: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #dadce0;
+  max-height: 200px;
+  display: flex;
+  justify-content: center;
+  background-color: #f8f9fa;
+}
+
+.image-preview img {
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+}
+
+.credits {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: #80868b;
+  padding-top: 12px;
+  border-top: 1px solid #eaeaea;
+}
+
+.credits p {
+  margin: 0;
+}
+
+/* Add a subtle animation for the buttons */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(26, 115, 232, 0.4);
   }
-  
-  .header {
-    display: flex;
-    align-items: center;
+  70% {
+    box-shadow: 0 0 0 6px rgba(26, 115, 232, 0);
   }
-  
-  .logo {
-    width: 32px;
+  100% {
+    box-shadow: 0 0 0 0 rgba(26, 115, 232, 0);
   }
-  
-  h1 {
-    font-size: 20px;
+}
+
+/* Apply the pulse animation to focused buttons */
+button:focus {
+  animation: pulse 1.5s infinite;
+  outline: none;
+}
+
+/* Button active state */
+button.active {
+  transform: scale(0.95);
+  background-color: #1765cc;
+}
+
+/* Processing state for solve button */
+button.processing {
+  pointer-events: none;
+  opacity: 0.8;
+  background-image: linear-gradient(to right, #1a73e8 0%, #1765cc 50%, #1a73e8 100%);
+  background-size: 200% auto;
+  animation: gradient 1.5s linear infinite;
+}
+
+@keyframes gradient {
+  0% {
+    background-position: 0% center;
   }
-  
-  textarea {
-    width: calc(100% - 20px);
+  100% {
+    background-position: 200% center;
   }
-  
-  button {
-    background-color: #4285f4;
+}
+
+/* Shake animation for empty input */
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
   }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-5px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(5px);
+  }
+}
+
+.shake {
+  animation: shake 0.5s;
+  border-color: #ea4335 !important;
+}
+
+/* Improve focus states */
+textarea:focus, button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.3);
+}
+
+/* Transition for showing/hiding elements */
+#loadingIndicator, #answerContent, .image-preview {
+  transition: opacity 0.3s ease;
+}
+
+/* Make the answer container styles more attractive */
+#answerContent {
+  position: relative;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #202124;
+  white-space: pre-wrap;
+  background-color: #f8f9fa;
+  padding: 16px;
+  border-radius: 8px;
+  border-left: 3px solid #1a73e8;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Empty state styling */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 0;
+  color: #80868b;
+  font-size: 14px;
+  text-align: center;
+}
+
+.empty-state-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+  color: #dadce0;
+}
+
+/* Style improvements for the image preview */
+.image-preview {
+  margin-top: 16px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #dadce0;
+  max-height: 200px;
+  display: flex;
+  justify-content: center;
+  background-color: #f8f9fa;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.image-preview:hover {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+}
+
+.image-preview img {
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+}
   

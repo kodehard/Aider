@@ -1,23 +1,35 @@
 // Configuration file for API keys and other environment variables
-// In production, these values will be used directly
-// In development, values can be overridden by a .env file
+// API keys stored here are for development purposes only
+// In production, these should be securely managed
 
-// Default config values - always available
+// Default config values
 const config = {
     // OpenRouter API configuration
-    OPENROUTER_API_KEY: "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",
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "YOUR_API_KEY_HERE",
     OPENROUTER_API_URL: "https://openrouter.ai/api/v1",
-    DEFAULT_MODEL: "deepseek/deepseek-r1:free",
+    // Use deepseek-r1 for text input processing
+    TEXT_MODEL: "deepseek/deepseek-r1:free",
+    // Keep vision model for screenshot processing
+    VISION_MODEL: "meta-llama/llama-3.2-11b-vision-instruct:free",
     
-    // OCR.space API configuration
-    OCR_API_KEY: "K89040367688957",
-    OCR_API_URL: "https://api.ocr.space/parse/image"
+    // Optional OCR configuration (as fallback)
+    OCR_API_KEY: process.env.OCR_API_KEY || "YOUR_OCR_KEY_HERE",
+    OCR_API_URL: "https://api.ocr.space/parse/image",
+    
+    // UI/UX configuration
+    MAX_TOKENS: 800,
+    TEMPERATURE: 0.7,
+    
+    // System prompts for different operations
+    SYSTEM_PROMPTS: {
+        TEXT_SOLVE: "You are a helpful assistant that specializes in solving problems in mathematics, physics, chemistry, and other technical subjects. Provide clear explanations with step-by-step solutions.",
+        IMAGE_SOLVE: "You are analyzing an image containing a problem. First identify the subject area (math, physics, etc.), then provide a complete solution with step-by-step reasoning. Format any equations properly and ensure your answer is clear and accurate."
+    }
 };
 
 // Make config available globally in content scripts
 if (typeof window !== 'undefined') {
     window.config = config;
-    console.log('Config loaded and attached to window object');
 }
 
 // For module contexts (if supported)
@@ -28,7 +40,7 @@ try {
         module.exports = { config };
     }
 } catch (error) {
-    console.log('Module exports not supported in this context');
+    // Remove line completely
 }
 
 // Function to load environment variables from .env file during development
@@ -50,11 +62,10 @@ const loadEnvVars = async () => {
                         config[key] = value;
                     }
                 });
-                console.log('Loaded config values from .env file');
             }
         }
     } catch (error) {
-        console.log('No .env file found, using default config values');
+        // Remove line completely
     }
     return config;
 }; 
