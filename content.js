@@ -1,141 +1,16 @@
-// This file will be used for other content script functionality
+// This file will be used for content script functionality
 // Screenshot functionality is handled in screenshot.js
 
 // Default config fallback if main config fails to load
 if (typeof window.config === 'undefined') {
-    window.config = {
-        OPENROUTER_API_KEY: "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",
-        OPENROUTER_API_URL: "https://openrouter.ai/api/v1",
-        TEXT_MODEL: "deepseek/deepseek-r1:free",
-        VISION_MODEL: "meta-llama/llama-3.2-11b-vision-instruct:free",
-        mathjax_cdn_url: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
-    };
+    // Load from config.js first
+    console.error('Config not found, using fallback config');
+    // This should not happen since we're injecting config.js first
 }
 
 // Ensure mathjax_cdn_url is defined for any scripts that need it
-if (typeof window.mathjax_cdn_url === 'undefined' && window.config.mathjax_cdn_url) {
+if (typeof window.mathjax_cdn_url === 'undefined' && window.config && window.config.mathjax_cdn_url) {
     window.mathjax_cdn_url = window.config.mathjax_cdn_url;
-}
-
-// Store config globally for easier access if not already defined
-if (typeof window.extensionConfig === 'undefined') {
-    window.extensionConfig = window.config;
-}
-
-// Variables for selection functionality - only define if not already defined
-if (typeof window.isSelecting === 'undefined') {
-    window.isSelecting = false;
-    window.isDrawing = false;
-    window.overlay = null;
-    window.selectionBox = null;
-    window.selection = {
-        startX: 0,
-        startY: 0,
-        width: 0,
-        height: 0,
-        docWidth: 0,
-        docHeight: 0,
-        scrollX: 0,
-        scrollY: 0
-    };
-}
-
-// Function to start selection mode
-function startSelection() {
-    window.isSelecting = true;
-    
-    // Create selection overlay
-    window.overlay = document.createElement('div');
-    window.overlay.style.position = 'fixed';
-    window.overlay.style.top = '0';
-    window.overlay.style.left = '0';
-    window.overlay.style.width = '100%';
-    window.overlay.style.height = '100%';
-    window.overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
-    window.overlay.style.cursor = 'crosshair';
-    window.overlay.style.zIndex = '10000';
-    document.body.appendChild(window.overlay);
-    
-    // Store document dimensions
-    window.selection.docWidth = Math.max(
-        document.documentElement.scrollWidth,
-        document.documentElement.clientWidth
-    );
-    window.selection.docHeight = Math.max(
-        document.documentElement.scrollHeight,
-        document.documentElement.clientHeight
-    );
-}
-
-// Mouse event handlers
-function handleMouseDown(e) {
-    if (!window.isSelecting) return;
-    
-    window.isDrawing = true;
-    window.selection.startX = e.pageX;
-    window.selection.startY = e.pageY;
-    
-    // Store scroll position at start of selection
-    window.selection.scrollX = window.pageXOffset;
-    window.selection.scrollY = window.pageYOffset;
-    
-    window.selectionBox = document.createElement('div');
-    window.selectionBox.style.position = 'absolute';
-    window.selectionBox.style.border = '2px solid #0078D7';
-    window.selectionBox.style.backgroundColor = 'rgba(0, 120, 215, 0.1)';
-    window.selectionBox.style.zIndex = '10001';
-    document.body.appendChild(window.selectionBox);
-}
-
-function handleMouseMove(e) {
-    if (!window.isDrawing) return;
-    
-    const width = e.pageX - window.selection.startX;
-    const height = e.pageY - window.selection.startY;
-    
-    window.selectionBox.style.left = width < 0 ? e.pageX + 'px' : window.selection.startX + 'px';
-    window.selectionBox.style.top = height < 0 ? e.pageY + 'px' : window.selection.startY + 'px';
-    window.selectionBox.style.width = Math.abs(width) + 'px';
-    window.selectionBox.style.height = Math.abs(height) + 'px';
-}
-
-function handleMouseUp(e) {
-    if (!window.isDrawing) return;
-    
-    window.isDrawing = false;
-    window.isSelecting = false;
-    
-    window.selection.width = Math.abs(e.pageX - window.selection.startX);
-    window.selection.height = Math.abs(e.pageY - window.selection.startY);
-    
-    if (e.pageX < window.selection.startX) {
-        window.selection.startX = e.pageX;
-    }
-    if (e.pageY < window.selection.startY) {
-        window.selection.startY = e.pageY;
-    }
-    
-    if (window.overlay) {
-        window.overlay.remove();
-        window.overlay = null;
-    }
-    if (window.selectionBox) {
-        window.selectionBox.remove();
-        window.selectionBox = null;
-    }
-    
-    chrome.runtime.sendMessage({
-        action: 'captureSelection',
-        selection: window.selection
-    });
-}
-
-// Add event listeners only if they haven't been added yet
-if (!window.contentScriptEventsInitialized) {
-    document.addEventListener('mousedown', handleMouseDown);
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    window.contentScriptEventsInitialized = true;
 }
 
 // Create solution display
@@ -143,34 +18,14 @@ if (typeof window.solutionDiv === 'undefined') {
     window.solutionDiv = null;
 }
 
-// Initialize window namespace to avoid conflicts with screenshot.js
-if (typeof window.smartsolve === 'undefined') {
-    window.smartsolve = {
-        messageListenerInitialized: false
-    };
-}
-
 // Setup message listener for communication with popup and background scripts
 if (!window.messageListenerInitialized) {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        console.log('Content.js received message:', message);
+        
         // Add a listener for ping to check if content script is loaded
         if (message.action === 'ping') {
             sendResponse({ success: true });
-            return true;
-        }
-        // Add a listener for starting selection mode
-        else if (message.action === 'startSelectionMode') {
-            if (typeof window.startSelectionMode === 'function') {
-                window.startSelectionMode();
-                sendResponse({ success: true });
-            } else if (window.smartsolve && typeof window.smartsolve.selectionModeActive !== 'undefined') {
-                window.smartsolve.selectionModeActive = true;
-                const event = new CustomEvent('smartsolve_startSelection');
-                document.dispatchEvent(event);
-                sendResponse({ success: true });
-            } else {
-                sendResponse({ success: false, error: 'Selection mode function not available' });
-            }
             return true;
         }
         // Add a listener for scriptsLoaded
@@ -178,41 +33,97 @@ if (!window.messageListenerInitialized) {
             sendResponse({ success: true });
             return true;
         }
+        // Add a listener for startSelectionMode - forward to screenshot.js functions
+        else if (message.action === 'startSelectionMode') {
+            console.log('Content.js handling startSelectionMode');
+            try {
+                // Try to call the appropriate function in screenshot.js
+                if (typeof window.startScreenshot === 'function') {
+                    console.log('Calling window.startScreenshot()');
+                    window.startScreenshot();
+                    sendResponse({ success: true });
+                } else if (typeof window.startSelectionMode === 'function') {
+                    console.log('Calling window.startSelectionMode()');
+                    window.startSelectionMode();
+                    sendResponse({ success: true });
+                } else if (window.aider && window.aider.screenshot) {
+                    if (typeof window.aider.screenshot.startScreenshot === 'function') {
+                        console.log('Calling window.aider.screenshot.startScreenshot()');
+                        window.aider.screenshot.startScreenshot();
+                        sendResponse({ success: true });
+                    } else {
+                        console.error('Screenshot function not found in aider.screenshot namespace');
+                        // Try dispatching event
+                        const event = new CustomEvent('smartsolve_startSelection');
+                        document.dispatchEvent(event);
+                        sendResponse({ success: true });
+                    }
+                } else {
+                    console.error('No screenshot function found, dispatching event');
+                    // Try dispatching event
+                    const event = new CustomEvent('smartsolve_startSelection');
+                    document.dispatchEvent(event);
+                    sendResponse({ success: true });
+                }
+            } catch (error) {
+                console.error('Error starting selection mode:', error);
+                sendResponse({ success: false, error: 'Error starting selection mode: ' + error.message });
+            }
+            return true;
+        }
         // Add a listener for displaying solution
         else if (message.action === 'displaySolution') {
             if (typeof window.displaySolution === 'function') {
-                const options = {
-                    status: message.status || 'completed',
-                    error: message.options?.error || false
-                };
-                window.displaySolution(message.solution, message.imageUrl, options);
-                sendResponse({ success: true });
+                try {
+                    const options = {
+                        status: message.status || 'completed',
+                        error: message.options?.error || false
+                    };
+                    window.displaySolution(message.solution, message.imageUrl, options);
+                    sendResponse({ success: true });
+                } catch (error) {
+                    console.error('Error displaying solution:', error);
+                    sendResponse({ success: false, error: 'Error displaying solution: ' + error.message });
+                }
             } else if (window.smartsolve && window.smartsolve.ui) {
                 // Try to find the function in smartsolve namespace
-                const event = new CustomEvent('smartsolve_displaySolution', { 
-                    detail: { 
-                        solution: message.solution, 
-                        imageUrl: message.imageUrl,
-                        options: {
-                            status: message.status || 'completed',
-                            error: message.options?.error || false
-                        }
-                    } 
-                });
-                document.dispatchEvent(event);
-                sendResponse({ success: true });
+                try {
+                    const event = new CustomEvent('smartsolve_displaySolution', { 
+                        detail: { 
+                            solution: message.solution, 
+                            imageUrl: message.imageUrl,
+                            options: {
+                                status: message.status || 'completed',
+                                error: message.options?.error || false
+                            }
+                        } 
+                    });
+                    document.dispatchEvent(event);
+                    sendResponse({ success: true });
+                } catch (error) {
+                    console.error('Error dispatching solution event:', error);
+                    sendResponse({ success: false, error: 'Error dispatching solution event: ' + error.message });
+                }
             } else {
-                sendResponse({ success: false, error: 'Display solution function not available' });
+                // Fallback to our own implementation
+                try {
+                    displaySolution(message.solution, message.imageUrl, message.options);
+                    sendResponse({ success: true });
+                } catch (error) {
+                    console.error('Error with fallback display solution:', error);
+                    sendResponse({ success: false, error: 'Error with fallback display: ' + error.message });
+                }
             }
             return true;
         }
     });
     
     window.messageListenerInitialized = true;
+    console.log('Content script message listener initialized');
 }
 
 // Helper function to display solutions
-function displaySolution(text, imageUrl) {
+function displaySolution(text, imageUrl, options = {}) {
     // Remove any existing solution div
     const existingSolution = document.getElementById('smartsolve-solution');
     if (existingSolution) {
@@ -228,18 +139,63 @@ function displaySolution(text, imageUrl) {
     solutionDiv.style.backgroundColor = 'white';
     solutionDiv.style.padding = '20px';
     solutionDiv.style.border = '1px solid #ccc';
-    solutionDiv.style.borderRadius = '5px';
-    solutionDiv.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-    solutionDiv.style.zIndex = '10004';
+    solutionDiv.style.borderRadius = '8px';
+    solutionDiv.style.boxShadow = '0 4px 20px rgba(0,0,0,0.15)';
+    solutionDiv.style.zIndex = '2147483644'; // High but below screenshot UI
     solutionDiv.style.maxWidth = '80%';
     solutionDiv.style.maxHeight = '80vh';
     solutionDiv.style.overflow = 'auto';
     
-    let contentHtml = '<div style="text-align: center;">';
+    // Add a draggable header
+    const header = document.createElement('div');
+    header.style.padding = '10px 0';
+    header.style.marginBottom = '15px';
+    header.style.borderBottom = '1px solid #eee';
+    header.style.cursor = 'move';
+    header.style.position = 'sticky';
+    header.style.top = '0';
+    header.style.backgroundColor = 'white';
+    header.style.display = 'flex';
+    header.style.justifyContent = 'space-between';
+    header.style.alignItems = 'center';
+    
+    const title = document.createElement('h3');
+    title.textContent = 'Snap Solve';
+    title.style.margin = '0';
+    title.style.color = '#333';
+    title.style.fontWeight = '500';
+    
+    const closeButton = document.createElement('button');
+    closeButton.innerHTML = '&times;';
+    closeButton.style.background = 'none';
+    closeButton.style.border = 'none';
+    closeButton.style.fontSize = '24px';
+    closeButton.style.cursor = 'pointer';
+    closeButton.style.color = '#999';
+    
+    header.appendChild(title);
+    header.appendChild(closeButton);
+    solutionDiv.appendChild(header);
+    
+    // Main content container
+    const contentContainer = document.createElement('div');
+    contentContainer.style.position = 'relative';
     
     // Add image if provided
     if (imageUrl) {
-        contentHtml += `<img src="${imageUrl}" style="max-width: 100%; max-height: 300px; margin-bottom: 15px;" />`;
+        const imageContainer = document.createElement('div');
+        imageContainer.style.textAlign = 'center';
+        imageContainer.style.marginBottom = '15px';
+        
+        const image = document.createElement('img');
+        image.src = imageUrl;
+        image.style.maxWidth = '100%';
+        image.style.maxHeight = '300px';
+        image.style.border = '1px solid #eee';
+        image.style.borderRadius = '4px';
+        
+        imageContainer.appendChild(image);
+        contentContainer.appendChild(imageContainer);
     }
     
     // Format text content with basic handling for math expressions
@@ -253,16 +209,91 @@ function displaySolution(text, imageUrl) {
         .replace(/\n\n/g, '<br><br>')
         .replace(/\n/g, '<br>');
     
-    contentHtml += `<div style="text-align: left; white-space: pre-wrap;">${formattedText}</div>`;
+    const textContent = document.createElement('div');
+    textContent.style.textAlign = 'left';
+    textContent.style.lineHeight = '1.5';
     
-    // Add close button
-    contentHtml += `<button id="smartsolve-close-solution" style="margin-top: 20px;">Close</button></div>`;
+    // Add error styling if needed
+    if (options.error) {
+        textContent.style.color = '#f44336';
+    }
     
-    solutionDiv.innerHTML = contentHtml;
+    textContent.innerHTML = formattedText;
+    contentContainer.appendChild(textContent);
+    
+    // Add "Take Another Screenshot" button
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.marginTop = '20px';
+    buttonContainer.style.display = 'flex';
+    buttonContainer.style.justifyContent = 'center';
+    buttonContainer.style.gap = '10px';
+    
+    const takeAnotherButton = document.createElement('button');
+    takeAnotherButton.textContent = 'Take Another Screenshot';
+    takeAnotherButton.style.backgroundColor = '#1a73e8';
+    takeAnotherButton.style.color = 'white';
+    takeAnotherButton.style.border = 'none';
+    takeAnotherButton.style.borderRadius = '4px';
+    takeAnotherButton.style.padding = '8px 16px';
+    takeAnotherButton.style.cursor = 'pointer';
+    
+    buttonContainer.appendChild(takeAnotherButton);
+    contentContainer.appendChild(buttonContainer);
+    
+    // Add the content container to the solution div
+    solutionDiv.appendChild(contentContainer);
+    
+    // Add to page
     document.body.appendChild(solutionDiv);
     
-    // Add event listener to close button
-    document.getElementById('smartsolve-close-solution').addEventListener('click', () => {
+    // Make the solution div draggable by header
+    let isDragging = false;
+    let offsetX, offsetY;
+    
+    header.addEventListener('mousedown', function(e) {
+        isDragging = true;
+        offsetX = e.clientX - solutionDiv.getBoundingClientRect().left;
+        offsetY = e.clientY - solutionDiv.getBoundingClientRect().top;
+    });
+    
+    document.addEventListener('mousemove', function(e) {
+        if (isDragging) {
+            solutionDiv.style.left = (e.clientX - offsetX) + 'px';
+            solutionDiv.style.top = (e.clientY - offsetY) + 'px';
+            solutionDiv.style.transform = 'none'; // Remove the centering transform
+        }
+    });
+    
+    document.addEventListener('mouseup', function() {
+        isDragging = false;
+    });
+    
+    // Event listeners
+    closeButton.addEventListener('click', () => {
         solutionDiv.remove();
     });
+    
+    takeAnotherButton.addEventListener('click', () => {
+        solutionDiv.remove();
+        // Check if we have the screenshot function available
+        if (typeof window.startSelectionMode === 'function') {
+            window.startSelectionMode();
+        } else if (window.aider && window.aider.screenshot) {
+            if (typeof window.aider.screenshot.startScreenshot === 'function') {
+                window.aider.screenshot.startScreenshot();
+            } else if (typeof startScreenshot === 'function') {
+                startScreenshot();
+            }
+        } else {
+            // Try to trigger via event
+            const event = new CustomEvent('smartsolve_startSelection');
+            document.dispatchEvent(event);
+        }
+    });
+    
+    // Store reference to solution div
+    window.solutionDiv = solutionDiv;
 }
+
+// Expose functions for access from other scripts or background page
+window.displaySolution = displaySolution;

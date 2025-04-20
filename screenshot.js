@@ -1,6 +1,6 @@
 /**
  * Aider AI Screenshot Module
- * A simple, reliable screenshot selection implementation
+ * A reliable screenshot selection implementation with scroll support
  */
 
 // Initialize global namespace with minimal state
@@ -9,7 +9,8 @@ window.aider.screenshot = {
   isSelecting: false,
   selection: null,
   ui: {},
-  timeoutId: null
+  timeoutId: null,
+  scrollListener: null
 };
 
 /**
@@ -24,78 +25,99 @@ function startScreenshot() {
   // Initialize selection state
   window.aider.screenshot.isSelecting = true;
   window.aider.screenshot.selection = {
-            startX: 0,
-            startY: 0,
-            width: 0,
-            height: 0,
-    scrollX: 0,
-    scrollY: 0
+    startX: 0,
+    startY: 0,
+    endX: 0,
+    endY: 0,
+    width: 0,
+    height: 0,
+    scrollX: window.pageXOffset || document.documentElement.scrollLeft || 0,
+    scrollY: window.pageYOffset || document.documentElement.scrollTop || 0,
+    isActive: false
   };
   
+  // Prevent page scrolling during selection
+  document.documentElement.style.overflow = 'hidden';
+  document.body.style.overflow = 'hidden';
+  
   // Change cursor
-    document.body.style.cursor = 'crosshair';
+  document.body.style.cursor = 'crosshair';
     
   // Create overlay
-    const overlay = document.createElement('div');
+  const overlay = document.createElement('div');
   overlay.id = 'aider-screenshot-overlay';
-    overlay.style.position = 'fixed';
-    overlay.style.top = '0';
-    overlay.style.left = '0';
-    overlay.style.width = '100%';
-    overlay.style.height = '100%';
-    overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
+  overlay.style.position = 'fixed';
+  overlay.style.top = '0';
+  overlay.style.left = '0';
+  overlay.style.width = '100%';
+  overlay.style.height = '100%';
+  overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
   overlay.style.zIndex = '2147483645'; // Very high z-index to be on top
-    overlay.style.cursor = 'crosshair';
+  overlay.style.cursor = 'crosshair';
   document.body.appendChild(overlay);
   window.aider.screenshot.ui.overlay = overlay;
     
   // Add instructions
-    const instructions = document.createElement('div');
+  const instructions = document.createElement('div');
   instructions.id = 'aider-screenshot-instructions';
   instructions.style.position = 'fixed';
-    instructions.style.top = '10px';
-    instructions.style.left = '50%';
-    instructions.style.transform = 'translateX(-50%)';
+  instructions.style.top = '10px';
+  instructions.style.left = '50%';
+  instructions.style.transform = 'translateX(-50%)';
   instructions.style.backgroundColor = 'rgba(0, 0, 0, 0.75)';
-    instructions.style.color = 'white';
-    instructions.style.padding = '8px 16px';
-    instructions.style.borderRadius = '4px';
-    instructions.style.fontSize = '14px';
-    instructions.style.fontFamily = 'Arial, sans-serif';
+  instructions.style.color = 'white';
+  instructions.style.padding = '8px 16px';
+  instructions.style.borderRadius = '4px';
+  instructions.style.fontSize = '14px';
+  instructions.style.fontFamily = 'Arial, sans-serif';
   instructions.style.zIndex = '2147483646';
-    instructions.textContent = 'Click and drag to select an area';
+  instructions.textContent = 'Click and drag to select an area';
   document.body.appendChild(instructions);
   window.aider.screenshot.ui.instructions = instructions;
     
-    // Add cancel button
-    const cancelButton = document.createElement('button');
+  // Add cancel button
+  const cancelButton = document.createElement('button');
   cancelButton.id = 'aider-screenshot-cancel';
-    cancelButton.textContent = 'Cancel';
+  cancelButton.textContent = 'Cancel';
   cancelButton.style.position = 'fixed';
-    cancelButton.style.top = '10px';
-    cancelButton.style.right = '10px';
-    cancelButton.style.backgroundColor = '#f44336';
-    cancelButton.style.color = 'white';
-    cancelButton.style.border = 'none';
-    cancelButton.style.padding = '8px 16px';
-    cancelButton.style.borderRadius = '4px';
-    cancelButton.style.cursor = 'pointer';
-    cancelButton.style.fontFamily = 'Arial, sans-serif';
+  cancelButton.style.top = '10px';
+  cancelButton.style.right = '10px';
+  cancelButton.style.backgroundColor = '#f44336';
+  cancelButton.style.color = 'white';
+  cancelButton.style.border = 'none';
+  cancelButton.style.padding = '8px 16px';
+  cancelButton.style.borderRadius = '4px';
+  cancelButton.style.cursor = 'pointer';
+  cancelButton.style.fontFamily = 'Arial, sans-serif';
   cancelButton.style.zIndex = '2147483646';
   cancelButton.onclick = function(e) {
-        e.stopPropagation();
+    e.stopPropagation();
     cleanupScreenshotUI();
   };
   document.body.appendChild(cancelButton);
   window.aider.screenshot.ui.cancelButton = cancelButton;
   
   // Set up event handlers
-        document.addEventListener('mousedown', handleMouseDown);
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
+  document.addEventListener('mousedown', handleMouseDown);
+  document.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('mouseup', handleMouseUp);
   document.addEventListener('keydown', handleKeyDown);
+
+  // Add scroll event listener to update selection when scrolling
+  window.aider.screenshot.scrollListener = function() {
+    // Update the selection's scroll position when the page scrolls
+    if (window.aider.screenshot.selection && window.aider.screenshot.selection.isActive) {
+      const currentScrollX = window.pageXOffset || document.documentElement.scrollLeft || 0;
+      const currentScrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+      window.aider.screenshot.selection.scrollX = currentScrollX;
+      window.aider.screenshot.selection.scrollY = currentScrollY;
+    }
+  };
+  
+  // Attach scroll listener for safety, though we disable scrolling during selection
+  window.addEventListener('scroll', window.aider.screenshot.scrollListener);
     
-    return true;
+  return true;
 }
 
 /**
@@ -104,24 +126,21 @@ function startScreenshot() {
 function handleMouseDown(e) {
   if (!window.aider.screenshot.isSelecting) return;
     
-  // Prevent text selection
-    e.preventDefault();
+  // Prevent text selection and default behavior
+  e.preventDefault();
+  e.stopPropagation();
     
   // Store the starting position in client coordinates (fixed position relative to viewport)
   const selection = window.aider.screenshot.selection;
   selection.startX = e.clientX;
   selection.startY = e.clientY;
   
-  // Get the current scroll position - include all possible scroll sources
-  // This captures how far the page is scrolled at the START of selection
-  selection.scrollX = window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft || 0;
-  selection.scrollY = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+  // Get the current scroll position
+  selection.scrollX = window.pageXOffset || document.documentElement.scrollLeft || 0;
+  selection.scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
   
   console.log('Selection started at client coords:', selection.startX, selection.startY);
   console.log('Page scroll position:', selection.scrollX, selection.scrollY);
-  console.log('Page coords (clientX+scrollX, clientY+scrollY):', 
-    selection.startX + selection.scrollX, 
-    selection.startY + selection.scrollY);
   
   selection.isActive = true;
   
@@ -150,6 +169,11 @@ function handleMouseMove(e) {
   
   // Prevent text selection
   e.preventDefault();
+  e.stopPropagation();
+  
+  // Store the current position
+  selection.endX = e.clientX;
+  selection.endY = e.clientY;
   
   // Calculate dimensions
   const width = Math.abs(e.clientX - selection.startX);
@@ -162,8 +186,6 @@ function handleMouseMove(e) {
   // Update selection object
   selection.width = width;
   selection.height = height;
-  selection.endX = e.clientX;
-  selection.endY = e.clientY;
   
   // Update selection rectangle
   const selectionRect = window.aider.screenshot.ui.selectionRect;
@@ -201,9 +223,24 @@ function updateDimensionsDisplay(width, height, left, top) {
   }
   
   if (dimensionsDisplay) {
-    dimensionsDisplay.textContent = `${width} × ${height}`;
-    dimensionsDisplay.style.left = (left + width + 5) + 'px';
-    dimensionsDisplay.style.top = top + 'px';
+    dimensionsDisplay.textContent = `${Math.round(width)} × ${Math.round(height)}`;
+    
+    // Position the dimensions display
+    const displayLeft = (left + width + 10);
+    const displayTop = top;
+    
+    // Make sure it stays in viewport
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // If it would go off-screen to the right, place it to the left of selection
+    if (displayLeft + 100 > viewportWidth) {
+      dimensionsDisplay.style.left = (left - 100) + 'px';
+    } else {
+      dimensionsDisplay.style.left = displayLeft + 'px';
+    }
+    
+    dimensionsDisplay.style.top = displayTop + 'px';
   }
 }
 
@@ -214,12 +251,16 @@ function handleMouseUp(e) {
   const selection = window.aider.screenshot.selection;
   if (!window.aider.screenshot.isSelecting || !selection || !selection.isActive) return;
   
+  e.preventDefault();
+  e.stopPropagation();
+  
   // Calculate final dimensions using client coordinates (viewport-relative)
+  selection.endX = e.clientX;
+  selection.endY = e.clientY;
   selection.width = Math.abs(e.clientX - selection.startX);
   selection.height = Math.abs(e.clientY - selection.startY);
   
   // Update the starting position to be the top-left corner
-  // This keeps everything in client coordinates (viewport-relative)
   if (e.clientX < selection.startX) {
     selection.startX = e.clientX;
   }
@@ -229,36 +270,37 @@ function handleMouseUp(e) {
   }
   
   // Get current scroll position at the END of the selection
-  // This ensures we account for any scrolling that happened during selection
-  const currentScrollX = window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft || 0;
-  const currentScrollY = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+  const currentScrollX = window.pageXOffset || document.documentElement.scrollLeft || 0;
+  const currentScrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
   
-  console.log('Selection ended at client coords:', e.clientX, e.clientY);
-  console.log('Final selection rect (client coords):', 
-    selection.startX, selection.startY, selection.width, selection.height);
-  console.log('Current scroll position:', currentScrollX, currentScrollY);
-  
-  // If scroll position changed during selection, use the new scroll position
-  // This ensures we capture the correct part of the page
+  // Use the final scroll position
   selection.scrollX = currentScrollX;
   selection.scrollY = currentScrollY;
   
   // Check if selection is big enough
   if (selection.width < 10 || selection.height < 10) {
     console.log('Selection too small, ignoring');
+    cleanupScreenshotUI();
     return;
   }
   
-  console.log('Final selection data:', selection);
+  console.log('Final selection data:', {
+    startX: selection.startX,
+    startY: selection.startY,
+    width: selection.width,
+    height: selection.height,
+    scrollX: selection.scrollX,
+    scrollY: selection.scrollY
+  });
   
-  // Prepare final selection data - using client coords and scroll position
+  // Prepare final selection data
   const finalSelection = {
-    startX: selection.startX,  // client X (viewport relative)
-    startY: selection.startY,  // client Y (viewport relative)
-    width: selection.width,    // width in pixels
-    height: selection.height,  // height in pixels
-    scrollX: selection.scrollX, // page scroll X
-    scrollY: selection.scrollY  // page scroll Y
+    startX: selection.startX,
+    startY: selection.startY,
+    width: selection.width,
+    height: selection.height,
+    scrollX: selection.scrollX,
+    scrollY: selection.scrollY
   };
   
   // Clean up UI
@@ -310,7 +352,7 @@ function showProcessingUI() {
   header.style.marginBottom = '15px';
   
   const title = document.createElement('h3');
-  title.textContent = 'Aider AI';
+  title.textContent = 'Snap Solve';
   title.style.margin = '0';
   title.style.color = '#333';
   title.style.fontWeight = '500';
@@ -532,7 +574,7 @@ function showSolution(solution, imageUrl = null, options = {}) {
   header.style.borderBottom = '1px solid #f0f0f0';
   
   const title = document.createElement('h3');
-  title.textContent = 'Aider AI';
+  title.textContent = 'Snap Solve';
   title.style.margin = '0';
     title.style.color = '#333';
   title.style.fontWeight = '500';
@@ -716,6 +758,16 @@ function cleanupScreenshotUI() {
     window.aider.screenshot.selection.isActive = false;
   }
   
+  // Remove scroll listener if it exists
+  if (window.aider.screenshot.scrollListener) {
+    window.removeEventListener('scroll', window.aider.screenshot.scrollListener);
+    window.aider.screenshot.scrollListener = null;
+  }
+  
+  // Restore scrolling
+  document.documentElement.style.overflow = '';
+  document.body.style.overflow = '';
+  
   // Remove all UI elements
   const elements = [
     'aider-screenshot-overlay',
@@ -745,6 +797,17 @@ function cleanupScreenshotUI() {
   document.body.style.cursor = 'default';
 }
 
+// Expose functions globally for direct calls from background script
+window.startScreenshot = startScreenshot;
+window.aider.screenshot.startScreenshot = startScreenshot;
+window.cleanupScreenshotUI = cleanupScreenshotUI;
+window.showProcessingUI = showProcessingUI;
+window.showSolution = showSolution;
+window.removeAllPopups = removeAllPopups;
+
+// Also respond to startSelectionMode for backward compatibility
+window.startSelectionMode = startScreenshot;
+
 /**
  * Set up message listener
  */
@@ -754,9 +817,10 @@ function setupMessageListener() {
   console.log('Setting up message listener');
   
   chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
-    console.log('Received message:', message);
+    console.log('Received message in screenshot.js:', message);
     
     if (message.action === 'startSelectionMode') {
+      console.log('Starting selection mode via message');
       const success = startScreenshot();
       sendResponse({success: success});
       return true;
@@ -780,6 +844,7 @@ function setupMessageListener() {
     }
     
     if (message.action === 'scriptsLoaded' || message.action === 'ping') {
+      console.log('Ping received in screenshot.js');
       sendResponse({success: true});
       return true;
     }
@@ -787,34 +852,13 @@ function setupMessageListener() {
   
   // Also listen for custom events (for compatibility)
   document.addEventListener('smartsolve_startSelection', function() {
+    console.log('smartsolve_startSelection event received');
     startScreenshot();
   });
-  
-  document.addEventListener('smartsolve_displaySolution', function(event) {
-    if (event.detail && event.detail.solution) {
-      // Convert to the new options format
-      const options = event.detail.options || {};
-      if (event.detail.status === 'processing') {
-        options.processing = true;
-      }
-      if (event.detail.error) {
-        options.error = true;
-      }
-      
-      showSolution(
-        event.detail.solution,
-        event.detail.imageUrl,
-        options
-      );
-    }
-  });
-  
-  // Expose functions globally for direct calls
-  window.startSelectionMode = startScreenshot;
-  window.displaySolution = showSolution;
   
   window.aider.listenerInitialized = true;
 }
 
 // Initialize when the script loads
+console.log('Screenshot.js loaded and initializing');
 setupMessageListener(); 

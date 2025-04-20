@@ -1,11 +1,9 @@
 // Define default config to be used until the real config is loaded
 const defaultConfig = {
-    OPENROUTER_API_KEY: "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",
+    OPENROUTER_API_KEY: "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",
     OPENROUTER_API_URL: "https://openrouter.ai/api/v1",
     TEXT_MODEL: "deepseek/deepseek-r1:free",
-    VISION_MODEL: "meta-llama/llama-3.2-11b-vision-instruct:free",
-    OCR_API_KEY: "K87825071688957",
-    OCR_API_URL: "https://api.ocr.space/parse/image",
+    VISION_MODEL: "qwen/qwen2.5-vl-72b-instruct:free",
     mathjax_cdn_url: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
     SYSTEM_PROMPTS: {
         TEXT_SOLVE: "You are a helpful assistant that specializes in solving problems in mathematics, physics, chemistry, and other technical subjects. Provide clear explanations with step-by-step solutions.",
@@ -24,6 +22,7 @@ loadConfig().then(loadedConfig => {
 // Function to load config
 async function loadConfig() {
     try {
+        // Import config from the config.js file
         const response = await fetch('config.js');
         if (!response.ok) return null;
         
@@ -35,10 +34,12 @@ async function loadConfig() {
                 config = loadedConfig;
                 return loadedConfig;
             } catch (e) {
+                console.error('Error parsing config:', e);
                 return null;
             }
         }
     } catch (error) {
+        console.error('Error loading config:', error);
         return null;
     }
     return null;
@@ -49,7 +50,7 @@ chrome.runtime.onInstalled.addListener(() => {
     
     chrome.contextMenus.create({
         id: 'solveWithAider',
-        title: 'Solve with Aider AI',
+        title: 'Solve with Snap Solve',
         contexts: ['selection']
     });
 });
@@ -73,27 +74,87 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         injectScripts(tabId)
             .then(() => {
                 console.log('Scripts injected, starting selection mode...');
+                // Add more details for debugging
+                console.log('Tab ID:', tabId);
+                console.log('Executing script in page context to call startScreenshot...');
+                
+                // Use executeScript to directly call startScreenshot function in page context
                 return chrome.scripting.executeScript({
                     target: { tabId: tabId },
-                    func: () => {
-                        console.log('Executing selection mode in page context');
-                        if (typeof window.startSelectionMode === 'function') {
-                            window.startSelectionMode();
-                            return { success: true };
+                    function: () => {
+                        console.log('Executing startScreenshot in page context');
+                        // Add more detailed logging
+                        console.log('Window.startScreenshot exists:', typeof window.startScreenshot === 'function');
+                        console.log('Window.aider exists:', !!window.aider);
+                        console.log('Window.aider.screenshot exists:', !!(window.aider && window.aider.screenshot));
+                        
+                        // Try multiple possible ways the function might be exposed
+                        if (typeof window.startScreenshot === 'function') {
+                            console.log('Calling window.startScreenshot()');
+                            try {
+                                window.startScreenshot();
+                                return { success: true, method: 'window.startScreenshot' };
+                            } catch (e) {
+                                console.error('Error calling window.startScreenshot:', e);
+                                return { success: false, error: e.message, method: 'window.startScreenshot' };
+                            }
+                        } else if (window.aider && window.aider.screenshot && typeof window.aider.screenshot.startScreenshot === 'function') {
+                            console.log('Calling window.aider.screenshot.startScreenshot()');
+                            try {
+                                window.aider.screenshot.startScreenshot();
+                                return { success: true, method: 'window.aider.screenshot.startScreenshot' };
+                            } catch (e) {
+                                console.error('Error calling window.aider.screenshot.startScreenshot:', e);
+                                return { success: false, error: e.message, method: 'window.aider.screenshot.startScreenshot' };
+                            }
+                        } else if (typeof startScreenshot === 'function') {
+                            console.log('Calling startScreenshot()');
+                            try {
+                                startScreenshot();
+                                return { success: true, method: 'startScreenshot' };
+                            } catch (e) {
+                                console.error('Error calling startScreenshot:', e);
+                                return { success: false, error: e.message, method: 'startScreenshot' };
+                            }
                         } else {
-                            console.error('Selection mode functions not found in page context');
-                            return { success: false, error: 'Selection functions not available' };
+                            // Try one more approach - dispatch an event
+                            try {
+                                console.log('Dispatching smartsolve_startSelection event');
+                                const event = new CustomEvent('smartsolve_startSelection');
+                                document.dispatchEvent(event);
+                                return { success: true, method: 'event', warning: 'Used event dispatch as fallback' };
+                            } catch (e) {
+                                console.error('No screenshot functions found and event dispatch failed');
+                                return { 
+                                    success: false, 
+                                    error: 'Screenshot functions not available and event dispatch failed: ' + e.message,
+                                    availableFunctions: Object.keys(window)
+                                };
+                            }
                         }
                     }
                 });
             })
             .then((results) => {
                 console.log('Selection mode execution results:', results);
-                if (results && results[0] && results[0].result && results[0].result.success) {
-                    sendResponse({ success: true });
+                if (results && results[0] && results[0].result) {
+                    const result = results[0].result;
+                    console.log('Result details:', result);
+                    
+                    if (result.success) {
+                        console.log('Successfully started screenshot mode using:', result.method);
+                        sendResponse({ success: true, method: result.method });
+                    } else {
+                        console.error('Failed to start screenshot mode:', result.error);
+                        sendResponse({ 
+                            success: false, 
+                            error: result.error || 'Could not start selection mode. Please try refreshing the page.',
+                            details: result
+                        });
+                    }
                 } else {
-                    const error = results?.[0]?.result?.error || 'Could not start selection mode. Please try refreshing the page.';
-                    sendResponse({ success: false, error: error });
+                    console.error('Invalid result from executeScript:', results);
+                    sendResponse({ success: false, error: 'Invalid result from script execution' });
                 }
             })
             .catch(error => {
@@ -117,21 +178,56 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     } else if (message.action === 'captureSelection') {
         const selection = message.selection;
         
-        // Send an immediate acknowledgment that we received the message
+        if (!selection) {
+            sendResponse({ success: false, error: 'No selection data provided' });
+            return true;
+        }
+        
+        // Send an immediate acknowledgment
         sendResponse({ received: true });
         
-        // Then process the capture separately
-        captureAndProcessSelection(selection, message.tabId || sender.tab.id);
+        // Process the capture separately
+        const tabId = message.tabId || sender.tab.id;
+        
+        // Add a small delay to ensure UI is cleaned up
+        setTimeout(() => {
+            captureAndProcessSelection(selection, tabId);
+        }, 100);
         
         return true;
     } else if (message.action === 'startSelectionMode') {
         if (message.tabId) {
-            chrome.tabs.sendMessage(message.tabId, { action: 'startSelectionMode' }, (response) => {
-                if (chrome.runtime.lastError) {
-                    sendResponse({ success: false, error: chrome.runtime.lastError.message });
-                } else {
-                    sendResponse({ success: true });
+            // Use direct executeScript instead of message passing
+            chrome.scripting.executeScript({
+                target: { tabId: message.tabId },
+                function: () => {
+                    console.log('Executing startScreenshot in page context via startSelectionMode');
+                    if (typeof window.startScreenshot === 'function') {
+                        window.startScreenshot();
+                        return { success: true };
+                    } else if (window.aider && window.aider.screenshot && typeof window.aider.screenshot.startScreenshot === 'function') {
+                        window.aider.screenshot.startScreenshot();
+                        return { success: true };
+                    } else if (typeof startScreenshot === 'function') {
+                        startScreenshot();
+                        return { success: true };
+                    } else {
+                        console.error('Screenshot functions not found in page context');
+                        return { success: false, error: 'Screenshot functions not available' };
+                    }
                 }
+            })
+            .then(results => {
+                if (results && results[0] && results[0].result && results[0].result.success) {
+                    sendResponse({ success: true });
+                } else {
+                    const error = results?.[0]?.result?.error || 'Could not start selection mode';
+                    sendResponse({ success: false, error: error });
+                }
+            })
+            .catch(error => {
+                console.error('Error starting selection mode:', error);
+                sendResponse({ success: false, error: error.message || 'Failed to start selection mode' });
             });
         } else {
             sendResponse({ success: false, error: "Tab ID is not available" });
@@ -148,9 +244,9 @@ async function sendToVisionAPI(imageDataUrl, tabId) {
     });
 
     try {
-        const API_URL = config.OPENROUTER_API_URL || "https://openrouter.ai/api/v1";
+        const API_URL = config.OPENROUTER_API_URL;
         const API_KEY = config.OPENROUTER_API_KEY;
-        const MODEL = config.VISION_MODEL || "meta-llama/llama-3.2-11b-vision-instruct:free";
+        const MODEL = config.VISION_MODEL;
         const SYSTEM_PROMPT = config.SYSTEM_PROMPTS?.IMAGE_SOLVE || 
             "You are analyzing an image containing a problem. First identify the subject area (math, physics, etc.), then provide a complete solution with step-by-step reasoning. Format any equations properly and ensure your answer is clear and accurate.";
         
@@ -181,7 +277,7 @@ async function sendToVisionAPI(imageDataUrl, tabId) {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${API_KEY}`,
                     'HTTP-Referer': 'https://github.com/OpenRouterTeam/openrouter',
-                    'X-Title': 'Aider AI'
+                    'X-Title': 'Snap Solve'
                 },
                 body: JSON.stringify({
                     model: MODEL,
@@ -260,42 +356,196 @@ async function sendToVisionAPI(imageDataUrl, tabId) {
 function captureAndProcessSelection(selection, tabId) {
     console.log('Starting capture and process selection:', { selection, tabId });
 
-    // Capture the entire page
-    chrome.tabs.captureVisibleTab(null, { format: 'png' }, function(dataUrl) {
-        if (chrome.runtime.lastError) {
-            console.error('Error capturing tab:', chrome.runtime.lastError);
-            return;
-        }
-
-        // Process the image in the content script context
+    try {
+        // Get detailed page information including window dimensions, scroll position, and device pixel ratio
         chrome.scripting.executeScript({
             target: { tabId: tabId },
-            func: processFullPageScreenshot,
-            args: [dataUrl, selection]
+            function: () => {
+                return {
+                    scrollX: window.pageXOffset || document.documentElement.scrollLeft || 0,
+                    scrollY: window.pageYOffset || document.documentElement.scrollTop || 0,
+                    viewportWidth: window.innerWidth,
+                    viewportHeight: window.innerHeight,
+                    clientWidth: document.documentElement.clientWidth || window.innerWidth,
+                    clientHeight: document.documentElement.clientHeight || window.innerHeight,
+                    devicePixelRatio: window.devicePixelRatio || 1,
+                    hasScrolled: window.pageYOffset > 0 || document.documentElement.scrollTop > 0
+                };
+            }
+        }, (results) => {
+            if (chrome.runtime.lastError) {
+                console.error('Error getting page info:', chrome.runtime.lastError);
+                sendErrorToTab(tabId, "Failed to capture screenshot. Please try again.");
+                return;
+            }
+            
+            // Get page information
+            const pageInfo = results[0].result;
+            console.log('Page information before capture:', pageInfo);
+            
+            // Update the selection with the latest scroll position if not already set
+            if (typeof selection.scrollX === 'undefined' || typeof selection.scrollY === 'undefined') {
+                selection.scrollX = pageInfo.scrollX;
+                selection.scrollY = pageInfo.scrollY;
+            }
+            
+            // Store information for proper scaling
+            selection.devicePixelRatio = pageInfo.devicePixelRatio;
+            selection.viewportWidth = pageInfo.viewportWidth;
+            selection.viewportHeight = pageInfo.viewportHeight;
+            selection.clientWidth = pageInfo.clientWidth;
+            selection.clientHeight = pageInfo.clientHeight;
+            
+            // Make sure the selection coordinates make sense
+            if (selection.width <= 0 || selection.height <= 0) {
+                sendErrorToTab(tabId, "Invalid selection area. Please try selecting again.");
+                return;
+            }
+            
+            // Check if selection is outside the viewport
+            const isOffscreen = (
+                selection.startX < 0 || 
+                selection.startY < 0 || 
+                selection.startX + selection.width > pageInfo.viewportWidth ||
+                selection.startY + selection.height > pageInfo.viewportHeight
+            );
+            
+            if (isOffscreen) {
+                console.warn('Selection is partially outside viewport, adjusting coordinates');
+                
+                // Adjust to keep within viewport
+                selection.startX = Math.max(0, selection.startX);
+                selection.startY = Math.max(0, selection.startY);
+                selection.width = Math.min(selection.width, pageInfo.viewportWidth - selection.startX);
+                selection.height = Math.min(selection.height, pageInfo.viewportHeight - selection.startY);
+            }
+            
+            console.log('Adjusted selection before capture:', selection);
+            
+            // Now capture the visible tab
+            chrome.tabs.captureVisibleTab(null, { format: 'png' }, function(dataUrl) {
+                if (chrome.runtime.lastError) {
+                    console.error('Error capturing tab:', chrome.runtime.lastError);
+                    sendErrorToTab(tabId, "Failed to capture screenshot. Please try again.");
+                    return;
+                }
+                
+                // Process the image to crop it based on selection
+                chrome.scripting.executeScript({
+                    target: { tabId: tabId },
+                    function: processFullPageScreenshot,
+                    args: [dataUrl, selection]
+                }, (results) => {
+                    if (chrome.runtime.lastError || !results || !results[0] || !results[0].result) {
+                        console.error('Error processing screenshot:', chrome.runtime.lastError);
+                        sendErrorToTab(tabId, "Failed to process screenshot. Please try again.");
+                        return;
+                    }
+                    
+                    const croppedDataUrl = results[0].result;
+                    
+                    // Save image for popup to access
+                    chrome.storage.local.set({ capturedImage: croppedDataUrl });
+                    
+                    // Send to vision API for processing
+                    sendToVisionAPI(croppedDataUrl, tabId).catch(error => {
+                        console.error('Error sending to vision API:', error);
+                        sendErrorToTab(tabId, error.message || "Failed to analyze image. Please try again.");
+                    });
+                });
+            });
         });
-    });
+    } catch (error) {
+        console.error('Error in captureAndProcessSelection:', error);
+        sendErrorToTab(tabId, error.message || "An unknown error occurred. Please try again.");
+    }
 }
 
 // Function to process the full page screenshot and crop it based on selection
 function processFullPageScreenshot(dataUrl, selection) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.src = dataUrl;
-        img.onload = function() {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-
-            // Set canvas dimensions to the selection size
-            canvas.width = selection.width;
-            canvas.height = selection.height;
-
-            // Draw the full image on the canvas
-            ctx.drawImage(img, -selection.startX, -selection.startY);
-
-            // Convert back to dataURL
-            const croppedDataUrl = canvas.toDataURL('image/png');
-            resolve(croppedDataUrl);
-        };
+    return new Promise((resolve, reject) => {
+        try {
+            console.log('Processing screenshot with selection data:', selection);
+            const img = new Image();
+            
+            img.onload = function() {
+                try {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Set canvas dimensions to the selection size
+                    canvas.width = selection.width;
+                    canvas.height = selection.height;
+                    
+                    // Use the viewport dimensions passed from the background script
+                    // This ensures consistency between capturing and processing
+                    const viewportWidth = selection.clientWidth || selection.viewportWidth || document.documentElement.clientWidth || window.innerWidth;
+                    const viewportHeight = selection.clientHeight || selection.viewportHeight || document.documentElement.clientHeight || window.innerHeight;
+                    const devicePixelRatio = selection.devicePixelRatio || window.devicePixelRatio || 1;
+                    
+                    // Calculate scaling factor if the image size doesn't match window size
+                    // This adjusts for high DPI displays and zoom levels
+                    const scaleX = img.width / viewportWidth;
+                    const scaleY = img.height / viewportHeight;
+                    
+                    console.log('Image dimensions:', img.width, 'x', img.height);
+                    console.log('Viewport dimensions:', viewportWidth, 'x', viewportHeight);
+                    console.log('Device pixel ratio:', devicePixelRatio);
+                    console.log('Scale factors:', scaleX, scaleY);
+                    
+                    // Calculate adjusted coordinates accounting for scaling
+                    const adjustedX = Math.round(selection.startX * scaleX);
+                    const adjustedY = Math.round(selection.startY * scaleY);
+                    const adjustedWidth = Math.round(selection.width * scaleX);
+                    const adjustedHeight = Math.round(selection.height * scaleY);
+                    
+                    console.log('Original selection coordinates:', {
+                        x: selection.startX,
+                        y: selection.startY,
+                        width: selection.width,
+                        height: selection.height
+                    });
+                    
+                    console.log('Adjusted coordinates for capture:', {
+                        x: adjustedX,
+                        y: adjustedY,
+                        width: adjustedWidth,
+                        height: adjustedHeight
+                    });
+                    
+                    // Draw only the selected portion of the image with adjusted coordinates
+                    ctx.drawImage(
+                        img,
+                        adjustedX, adjustedY, // Source X, Y (adjusted for scaling)
+                        adjustedWidth, adjustedHeight, // Source width, height (adjusted for scaling)
+                        0, 0, // Destination X, Y
+                        selection.width, selection.height // Destination width, height (original size)
+                    );
+                    
+                    // Convert back to dataURL
+                    const croppedDataUrl = canvas.toDataURL('image/png');
+                    
+                    // Log dimensions for debugging
+                    console.log(`Original image: ${img.width}x${img.height}, Cropped to: ${canvas.width}x${canvas.height}`);
+                    
+                    resolve(croppedDataUrl);
+                } catch (err) {
+                    console.error('Error cropping image:', err);
+                    reject(err);
+                }
+            };
+            
+            img.onerror = function() {
+                console.error('Error loading image');
+                reject(new Error('Failed to load screenshot image'));
+            };
+            
+            // Set the source of the image
+            img.src = dataUrl;
+        } catch (error) {
+            console.error('Error in processFullPageScreenshot:', error);
+            reject(error);
+        }
     });
 }
 
@@ -312,7 +562,7 @@ async function optimizeImageForAPI(dataUrl) {
         // For optimization, we'll delegate to a content script function
         const results = await chrome.scripting.executeScript({
             target: { tabId: tabs[0].id },
-            func: optimizeImageInPage,
+            function: optimizeImageInPage,
             args: [dataUrl]
         });
         
@@ -336,43 +586,94 @@ function optimizeImageInPage(dataUrl) {
             const img = new Image();
             
             img.onload = function() {
-                const MAX_SIZE = 4096; // Many vision APIs limit image dimensions
-                const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB limit common for APIs
-                
-                // Check if we need to resize
-                let newWidth = img.width;
-                let newHeight = img.height;
-                
-                if (img.width > MAX_SIZE || img.height > MAX_SIZE) {
-                    if (img.width > img.height) {
-                        newWidth = MAX_SIZE;
-                        newHeight = (img.height / img.width) * MAX_SIZE;
-                    } else {
-                        newHeight = MAX_SIZE;
-                        newWidth = (img.width / img.height) * MAX_SIZE;
+                try {
+                    // Set reasonable limits for API requests
+                    const MAX_SIZE = 4096; // Many vision APIs limit image dimensions
+                    const TARGET_SIZE = 1600; // Target size for most cases (good balance of quality and size)
+                    const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB limit common for APIs
+                    
+                    // Get original dimensions
+                    let newWidth = img.width;
+                    let newHeight = img.height;
+                    
+                    // Always resize if above target size for better performance
+                    if (img.width > TARGET_SIZE || img.height > TARGET_SIZE) {
+                        if (img.width > img.height) {
+                            newWidth = TARGET_SIZE;
+                            newHeight = Math.round((img.height / img.width) * TARGET_SIZE);
+                        } else {
+                            newHeight = TARGET_SIZE;
+                            newWidth = Math.round((img.width / img.height) * TARGET_SIZE);
+                        }
                     }
+                    
+                    // Hard limit if still above MAX_SIZE
+                    if (newWidth > MAX_SIZE || newHeight > MAX_SIZE) {
+                        if (newWidth > newHeight) {
+                            const ratio = MAX_SIZE / newWidth;
+                            newWidth = MAX_SIZE;
+                            newHeight = Math.round(newHeight * ratio);
+                        } else {
+                            const ratio = MAX_SIZE / newHeight;
+                            newHeight = MAX_SIZE;
+                            newWidth = Math.round(newWidth * ratio);
+                        }
+                    }
+                    
+                    // Create canvas and resize
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Use dimensions that are multiples of 2 for better compatibility
+                    newWidth = Math.floor(newWidth / 2) * 2;
+                    newHeight = Math.floor(newHeight / 2) * 2;
+                    
+                    canvas.width = newWidth;
+                    canvas.height = newHeight;
+                    
+                    // Use high quality image rendering
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    
+                    // Draw the image with the new dimensions
+                    ctx.drawImage(img, 0, 0, newWidth, newHeight);
+                    
+                    // Convert to optimized JPEG with appropriate quality
+                    // Start with higher quality and reduce if needed
+                    let quality = 0.90;
+                    let optimizedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                    
+                    // Estimate size (rough calculation, 1.37 is empirical factor for base64 encoding)
+                    let estimatedSize = Math.ceil((optimizedDataUrl.length - 22) * 0.75);
+                    
+                    // If still too large, gradually reduce quality
+                    while (estimatedSize > MAX_FILE_SIZE && quality > 0.5) {
+                        quality -= 0.05;
+                        optimizedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                        estimatedSize = Math.ceil((optimizedDataUrl.length - 22) * 0.75);
+                    }
+                    
+                    console.log(`Optimized image: ${img.width}x${img.height} -> ${newWidth}x${newHeight}, Quality: ${quality.toFixed(2)}`);
+                    
+                    resolve(optimizedDataUrl);
+                } catch (error) {
+                    console.error('Error during image optimization:', error);
+                    // Fall back to original image
+                    resolve(dataUrl);
                 }
-                
-                // Create canvas and resize
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                
-                canvas.width = newWidth;
-                canvas.height = newHeight;
-                ctx.drawImage(img, 0, 0, newWidth, newHeight);
-                
-                // Convert to optimized JPEG
-                resolve(canvas.toDataURL('image/jpeg', 0.85));
             };
             
             img.onerror = function() {
-                reject('Failed to load image for optimization');
+                console.error('Failed to load image for optimization');
+                // Fall back to original image
+                resolve(dataUrl);
             };
             
             img.src = dataUrl;
         } catch (error) {
             console.error('Error optimizing image:', error);
-            reject(error.message);
+            // Fall back to original image
+            resolve(dataUrl);
         }
     });
 }
@@ -401,54 +702,13 @@ function injectScriptsToTab(tabId) {
             // Inject content scripts first
             chrome.scripting.executeScript({
                 target: { tabId: tabId },
-                files: ['content.js', 'screenshot.js']
+                files: ['config.js', 'content.js', 'screenshot.js']
             })
             .then(() => {
-                // Inject config into the page context
-                chrome.scripting.executeScript({
-                    target: { tabId: tabId },
-                    func: (configData) => {
-                        // This runs in the context of the web page
-                        window.config = configData;
-                    },
-                    args: [config]
-                })
-                .then(() => {
-                    // Inject MathJax into the page context
-                    chrome.scripting.executeScript({
-                        target: { tabId: tabId },
-                        func: () => {
-                            // This runs in the context of the web page
-                            window.MathJax = window.MathJax || {
-                                tex: {
-                                    inlineMath: [['$', '$'], ['\\(', '\\)']],
-                                    displayMath: [['$$', '$$'], ['\\[', '\\]']],
-                                    processEscapes: true
-                                },
-                                svg: {
-                                    fontCache: 'global'
-                                }
-                            };
-                            
-                            // Basic handling of math expressions without full MathJax
-                            window.formatMath = function(text) {
-                                return text.replace(/\$\$(.*?)\$\$/g, '<div class="math-display">$1</div>')
-                                           .replace(/\$(.*?)\$/g, '<span class="math-inline">$1</span>');
-                            };
-                        }
-                    })
-                    .then(() => {
-                        // Send message to content script that scripts are loaded
-                        chrome.tabs.sendMessage(tabId, { action: 'scriptsLoaded' }, function(response) {
-                            resolve();
-                        });
-                    })
-                    .catch(error => {
-                        reject(new Error(`MathJax injection error: ${error.message}`));
-                    });
-                })
-                .catch(error => {
-                    reject(new Error(`Config injection error: ${error.message}`));
+                // No need to inject config separately since we're already injecting config.js
+                // Send message to content script that scripts are loaded
+                chrome.tabs.sendMessage(tabId, { action: 'scriptsLoaded' }, function(response) {
+                    resolve();
                 });
             })
             .catch((error) => {
@@ -477,131 +737,5 @@ function sendErrorToTab(tabId, errorMessage, imageUrl = null) {
     });
 }
 
-// Global variable to track selection state
-window.aider = {
-    screenshot: {
-        isSelecting: false,
-        selection: {
-            startX: 0,
-            startY: 0,
-            width: 0,
-            height: 0,
-            isActive: false
-        }
-    }
-};
-
-let selectionDiv;
-
-// Function to start selection mode
-function startSelectionMode() {
-    console.log('Starting selection mode');
-    window.aider.screenshot.isSelecting = true;
-    window.aider.screenshot.selection.isActive = true;
-
-    document.addEventListener('mousedown', handleMouseDown);
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-}
-
-// Handle mouse down event
-function handleMouseDown(e) {
-    console.log('Mouse down at:', e.clientX, e.clientY);
-    if (!window.aider.screenshot.isSelecting) return;
-
-    // Capture starting coordinates
-    window.aider.screenshot.selection.startX = e.clientX;
-    window.aider.screenshot.selection.startY = e.clientY;
-}
-
-// Handle mouse move event
-function handleMouseMove(e) {
-    if (!window.aider.screenshot.isSelecting) return;
-
-    // Update selection dimensions
-    window.aider.screenshot.selection.width = e.clientX - window.aider.screenshot.selection.startX;
-    window.aider.screenshot.selection.height = e.clientY - window.aider.screenshot.selection.startY;
-
-    // Draw selection rectangle
-    if (!selectionDiv) {
-        selectionDiv = document.createElement('div');
-        selectionDiv.style.position = 'absolute';
-        selectionDiv.style.border = '2px dashed rgba(0, 255, 0, 0.5)';
-        selectionDiv.style.backgroundColor = 'rgba(0, 255, 0, 0.2)';
-        document.body.appendChild(selectionDiv);
-    }
-
-    selectionDiv.style.left = `${Math.min(e.clientX, window.aider.screenshot.selection.startX)}px`;
-    selectionDiv.style.top = `${Math.min(e.clientY, window.aider.screenshot.selection.startY)}px`;
-    selectionDiv.style.width = `${Math.abs(window.aider.screenshot.selection.width)}px`;
-    selectionDiv.style.height = `${Math.abs(window.aider.screenshot.selection.height)}px`;
-}
-
-// Handle mouse up event
-function handleMouseUp(e) {
-    console.log('Mouse up at:', e.clientX, e.clientY);
-    if (!window.aider.screenshot.isSelecting) return;
-
-    // Finalize selection dimensions
-    window.aider.screenshot.selection.isActive = false;
-    window.aider.screenshot.isSelecting = false;
-
-    // Remove the selection rectangle
-    if (selectionDiv) {
-        document.body.removeChild(selectionDiv);
-        selectionDiv = null;
-    }
-
-    // Send selection data to background script for processing
-    chrome.runtime.sendMessage({
-        action: 'captureSelection',
-        selection: window.aider.screenshot.selection
-    });
-}
-
-// Start selection mode when needed
-startSelectionMode();
-
-// Function to initialize the screenshot functionality
-function initScreenshot() {
-    const screenshotButton = document.getElementById('screenshot-button');
-    screenshotButton.addEventListener('click', captureScreenshot);
-}
-
-// Function to capture the screenshot
-async function captureScreenshot() {
-    try {
-        const selection = getSelectionArea(); // Implement this to get the selected area
-        const canvas = await html2canvas(document.body, {
-            scrollX: window.scrollX,
-            scrollY: window.scrollY,
-            width: selection.width,
-            height: selection.height,
-            x: selection.x,
-            y: selection.y,
-        });
-        const imgData = canvas.toDataURL('image/png');
-        downloadImage(imgData, 'screenshot.png');
-    } catch (error) {
-        console.error('Error capturing screenshot:', error);
-    }
-}
-
-// Function to download the image
-function downloadImage(data, filename) {
-    const link = document.createElement('a');
-    link.href = data;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-// Function to get the selection area (to be implemented)
-function getSelectionArea() {
-    // Logic to determine the selected area
-    return { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight }; // Example
-}
-
-// Initialize the screenshot functionality on page load
-window.onload = initScreenshot;
+// Remove duplicated screenshot implementation that conflicts with screenshot.js
+// The functionality is now properly handled by the screenshot.js file

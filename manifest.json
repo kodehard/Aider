@@ -1,5 +1,5 @@
 {
-    "name": "Aider AI",
+    "name": "Snap Solve",
     "description": "AI-powered homework and study assistant with drag-select screenshot and AI integration.",
     "version": "1.0",
     "manifest_version": 3,
@@ -8,9 +8,7 @@
         "contextMenus",
         "storage",
         "scripting",
-        "tabs",
-        "nativeMessaging",
-        "screenshot"
+        "tabs"
     ],
     "host_permissions": [
         "<all_urls>"

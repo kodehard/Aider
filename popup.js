@@ -8,32 +8,38 @@ document.addEventListener('DOMContentLoaded', function() {
     const imagePreviewContainer = document.getElementById('imagePreviewContainer');
     const imagePreview = document.getElementById('imagePreview');
 
-    // Load or initialize config
+    // Load config
     let appConfig = {};
     try {
-        // Try to load from chrome storage first
+        // Try to load from chrome storage
         chrome.storage.local.get(['config'], function(result) {
             if (result.config) {
+                console.log('Using config from storage');
                 appConfig = result.config;
+            } else if (typeof window.config !== 'undefined') {
+                console.log('Using window.config');
+                appConfig = window.config;
             } else {
-                // Use default config
+                console.warn('No config found in storage or window, using fallback');
+                // Fallback config - should be the same as in config.js
                 appConfig = {
                     OPENROUTER_API_URL: "https://openrouter.ai/api/v1",
-                    OPENROUTER_API_KEY: "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",
+                    OPENROUTER_API_KEY: "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",
                     TEXT_MODEL: "deepseek/deepseek-r1:free",
-                    VISION_MODEL: "meta-llama/llama-3.2-11b-vision-instruct:free",
+                    VISION_MODEL: "qwen/qwen2.5-vl-72b-instruct:free",
                     MAX_TOKENS: 800,
                     TEMPERATURE: 0.7
                 };
             }
         });
     } catch (error) {
+        console.error('Error loading config:', error);
         // Fallback config
         appConfig = {
             OPENROUTER_API_URL: "https://openrouter.ai/api/v1",
-            OPENROUTER_API_KEY: "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",
+            OPENROUTER_API_KEY: "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",
             TEXT_MODEL: "deepseek/deepseek-r1:free",
-            VISION_MODEL: "meta-llama/llama-3.2-11b-vision-instruct:free",
+            VISION_MODEL: "qwen/qwen2.5-vl-72b-instruct:free",
             MAX_TOKENS: 800,
             TEMPERATURE: 0.7
         };
@@ -110,29 +116,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Add a subtle button animation for feedback
                 solveButton.classList.add('processing');
                 
-                // Get config values - fallback to defaults if not available
-                const config = appConfig;
-
-                const response = await fetch(`${config.OPENROUTER_API_URL}/chat/completions`, {
+                // Use config values
+                const response = await fetch(`${appConfig.OPENROUTER_API_URL}/chat/completions`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${config.OPENROUTER_API_KEY}`,
+                        'Authorization': `Bearer ${appConfig.OPENROUTER_API_KEY}`,
                         'Content-Type': 'application/json',
                         'HTTP-Referer': 'https://github.com/OpenRouterTeam/openrouter',
-                        'X-Title': 'Aider AI'
+                        'X-Title': 'Snap Solve'
                     },
                     body: JSON.stringify({
-                        model: config.TEXT_MODEL || "deepseek/deepseek-r1:free",
+                        model: appConfig.TEXT_MODEL,
                         messages: [
                             // Include system prompt if available
-                            ...(config.SYSTEM_PROMPTS?.TEXT_SOLVE ? 
-                                [{ role: "system", content: config.SYSTEM_PROMPTS.TEXT_SOLVE }] : 
+                            ...(appConfig.SYSTEM_PROMPTS?.TEXT_SOLVE ? 
+                                [{ role: "system", content: appConfig.SYSTEM_PROMPTS.TEXT_SOLVE }] : 
                                 []
                             ),
                             { role: "user", content: question }
                         ],
-                        temperature: config.TEMPERATURE || 0.7,
-                        max_tokens: config.MAX_TOKENS || 800
+                        temperature: appConfig.TEMPERATURE,
+                        max_tokens: appConfig.MAX_TOKENS
                     })
                 });
 
@@ -175,75 +179,88 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 300);
         
         chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-            if (tabs && tabs.length > 0) {
-                const tabId = tabs[0].id;
-                
-                // Clear any existing messages
-                answerContent.innerHTML = '';
-                
-                // Display a message to the user before proceeding
-                showAnswer("Initializing screenshot mode...");
-                
-                // Check if we can access the tab
-                if (!tabId || tabs[0].url.startsWith('chrome://') || tabs[0].url.startsWith('edge://')) {
-                    showAnswer("Error: Cannot access this page. Please try on a regular webpage.");
-                    return;
-                }
-                
-                // First check if content script is already loaded
-                chrome.tabs.sendMessage(tabId, { action: 'ping' }, function(pingResponse) {
-                    if (chrome.runtime.lastError) {
-                        console.log('Content script not loaded, injecting scripts...');
-                        // Content script not loaded, need to inject first
-                        chrome.runtime.sendMessage({
-                            action: 'injectScripts',
-                            tabId: tabId
-                        }, function(injectResponse) {
-                            if (chrome.runtime.lastError || !injectResponse || !injectResponse.success) {
-                                console.error('Failed to inject scripts:', chrome.runtime.lastError || 'Unknown error');
-                                showAnswer("Error: Failed to inject scripts. Please refresh the page and try again.");
-                                return;
-                            }
-                            
-                            console.log('Scripts injected successfully, starting screenshot mode...');
-                            // Scripts successfully injected, now start screenshot mode
-                            startScreenshotMode(tabId);
-                        });
-                    } else {
-                        console.log('Content script already loaded, starting screenshot mode directly...');
-                        // Content script already loaded, start screenshot mode directly
-                        startScreenshotMode(tabId);
-                    }
-                });
-            } else {
+            if (!tabs || tabs.length === 0) {
                 showAnswer("Error: No active tab found. Please try again.");
+                return;
             }
-        });
-        
-        // Function to start screenshot mode
-        function startScreenshotMode(tabId) {
-            showAnswer("Click and drag to select an area to capture.");
             
-            // Delay briefly to allow the message to display
-            setTimeout(() => {
-                chrome.runtime.sendMessage({
-                    action: 'takeScreenshot',
-                    tabId: tabId
-                }, function(response) {
-                    if (chrome.runtime.lastError) {
-                        console.error('Error taking screenshot:', chrome.runtime.lastError);
-                        showAnswer(`Error: ${chrome.runtime.lastError.message}`);
-                    } else if (response && response.success) {
-                        console.log('Screenshot mode started successfully');
-                        // Close the popup
-                        window.close();
-                    } else {
-                        console.error('Failed to start screenshot mode:', response?.error || 'Unknown error');
-                        showAnswer(`Error: ${response?.error || 'Unknown error'}`);
-                    }
-                });
-            }, 500);
-        }
+            const tab = tabs[0];
+            const tabId = tab.id;
+            
+            // Clear any existing messages
+            answerContent.innerHTML = '';
+            
+            // Check if we can access the tab
+            if (!tabId) {
+                showAnswer("Error: Cannot access tab. Please try again.");
+                return;
+            }
+            
+            // Check if the tab is on a supported page
+            if (tab.url.startsWith('chrome://') || tab.url.startsWith('edge://') || tab.url.startsWith('about:')) {
+                showAnswer("Error: Cannot take screenshots of browser pages. Please try on a regular webpage.");
+                return;
+            }
+            
+            // Display a message to the user
+            showAnswer("Initializing screenshot mode...");
+            
+            // Function to handle initialization failures
+            const handleInitError = (message) => {
+                showAnswer(`Error: ${message || "Failed to initialize screenshot mode"}. Please try again or refresh the page.`);
+            };
+            
+            // Function to start screenshot mode
+            const startScreenshotMode = () => {
+                showAnswer("Click and drag to select an area to capture.");
+                
+                // Close the popup after a short delay to allow the user to see the message
+                setTimeout(() => {
+                    chrome.runtime.sendMessage({
+                        action: 'takeScreenshot',
+                        tabId: tabId
+                    }, function(response) {
+                        if (chrome.runtime.lastError || !response || !response.success) {
+                            const errorMsg = chrome.runtime.lastError?.message || 
+                                            response?.error || 
+                                            "Unknown error";
+                            console.error('Error starting screenshot mode:', errorMsg);
+                            handleInitError(errorMsg);
+                        } else {
+                            console.log('Screenshot mode started successfully');
+                            window.close(); // Close popup only on success
+                        }
+                    });
+                }, 800); // Allow time for user to read the message
+            };
+            
+            // Ping the content script to check if it's loaded
+            chrome.tabs.sendMessage(tabId, { action: 'ping' }, function(pingResponse) {
+                // Check for error, which means content script is not loaded
+                if (chrome.runtime.lastError) {
+                    console.log('Content script not loaded, injecting scripts...');
+                    
+                    chrome.runtime.sendMessage({
+                        action: 'injectScripts',
+                        tabId: tabId
+                    }, function(injectResponse) {
+                        if (chrome.runtime.lastError || !injectResponse || !injectResponse.success) {
+                            console.error('Failed to inject scripts:', chrome.runtime.lastError || 'Unknown error');
+                            handleInitError("Failed to inject scripts");
+                            return;
+                        }
+                        
+                        console.log('Scripts injected successfully, starting screenshot mode...');
+                        
+                        // Wait a moment for scripts to initialize
+                        setTimeout(startScreenshotMode, 200);
+                    });
+                } else {
+                    console.log('Content script already loaded, starting screenshot mode directly...');
+                    startScreenshotMode();
+                }
+            });
+        });
     });
 
     // Listen for "Enter" key in textarea

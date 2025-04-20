@@ -1,46 +1,42 @@
-// Configuration file for API keys and other environment variables
-// API keys stored here are for development purposes only
-// In production, these should be securely managed
+// Configuration file for API keys and other settings
+// Single source of truth for all extension configurations
 
-// Default config values
 const config = {
-    // OpenRouter API configuration
-    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "YOUR_API_KEY_HERE",
+    // API Configuration
+    OPENROUTER_API_KEY: "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",
     OPENROUTER_API_URL: "https://openrouter.ai/api/v1",
-    // Use deepseek-r1 for text input processing
+    
+    // Model Selection
     TEXT_MODEL: "deepseek/deepseek-r1:free",
-    // Keep vision model for screenshot processing
-    VISION_MODEL: "meta-llama/llama-3.2-11b-vision-instruct:free",
+    VISION_MODEL: "qwen/qwen2.5-vl-72b-instruct:free",
     
-    // Optional OCR configuration (as fallback)
-    OCR_API_KEY: process.env.OCR_API_KEY || "YOUR_OCR_KEY_HERE",
-    OCR_API_URL: "https://api.ocr.space/parse/image",
-    
-    // UI/UX configuration
+    // Request Configuration
     MAX_TOKENS: 800,
     TEMPERATURE: 0.7,
     
-    // System prompts for different operations
+    // UI Configuration
+    mathjax_cdn_url: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+    
+    // System Prompts
     SYSTEM_PROMPTS: {
         TEXT_SOLVE: "You are a helpful assistant that specializes in solving problems in mathematics, physics, chemistry, and other technical subjects. Provide clear explanations with step-by-step solutions.",
         IMAGE_SOLVE: "You are analyzing an image containing a problem. First identify the subject area (math, physics, etc.), then provide a complete solution with step-by-step reasoning. Format any equations properly and ensure your answer is clear and accurate."
     }
 };
 
-// Make config available globally in content scripts
+// Make config available globally
 if (typeof window !== 'undefined') {
     window.config = config;
+    window.extensionConfig = config;
 }
 
-// For module contexts (if supported)
+// Export for module contexts if needed
 try {
-    if (typeof exports !== 'undefined') {
-        exports.config = config;
-    } else if (typeof module !== 'undefined' && module.exports) {
+    if (typeof module !== 'undefined' && module.exports) {
         module.exports = { config };
     }
 } catch (error) {
-    // Remove line completely
+    // Silently fail if module exports aren't supported
 }
 
 // Function to load environment variables from .env file during development
